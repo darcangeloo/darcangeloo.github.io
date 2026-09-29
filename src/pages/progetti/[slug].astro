@@ -1,0 +1,41 @@
+---
+import { getCollection, render } from "astro:content";
+import Base from "../../layouts/Base.astro";
+import Newsletter from "../../components/Newsletter.astro";
+
+export async function getStaticPaths() {
+  const progetti = await getCollection("progetti");
+  return progetti.map((p) => ({ params: { slug: p.id }, props: { p } }));
+}
+const { p } = Astro.props;
+const { Content } = await render(p);
+const { nome, sintesi, repoUrl, aggiornato, noindex } = p.data;
+const schema = [{
+  "@type": "SoftwareSourceCode", name: nome, description: sintesi,
+  ...(repoUrl && { codeRepository: repoUrl }),
+  author: { "@id": new URL("/#person", Astro.site).href },
+  ...(aggiornato && { dateModified: aggiornato.toISOString() }),
+}];
+---
+<Base title={nome} description={sintesi} noindex={noindex} schema={schema}>
+  <article>
+    <p class="mono muted"><a href="/#progetti">← Progetti</a></p>
+    <h1>{nome}</h1>
+    <p class="lead">{sintesi}</p>
+    <div class="body"><Content /></div>
+    {repoUrl && <p><a class="btn outline" href={repoUrl}>Repo su GitHub</a></p>}
+  </article>
+  <Newsletter />
+</Base>
+<style>
+  article { padding-top: 32px; }
+  h1 { font-size: 40px; line-height: 1.15; margin: 8px 0 24px; }
+  .lead, .body { font-size: 18px; line-height: 1.7; }
+  .body :global(h2) { font-size: 28px; margin: 1.6em 0 .5em; }
+  .body :global(h3) { font-size: 22px; margin: 1.4em 0 .5em; }
+  .body :global(pre) { overflow-x: auto; padding: 16px; border: 1px solid var(--line); border-radius: 12px; font: 14px/1.5 var(--mono); }
+  .body :global(code) { font-family: var(--mono); font-size: .9em; }
+  .body :global(table) { display: block; overflow-x: auto; border-collapse: collapse; font-size: 16px; margin: 0 0 1em; }
+  .body :global(th), .body :global(td) { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  @media (max-width: 640px) { h1 { font-size: 30px; } }
+</style>

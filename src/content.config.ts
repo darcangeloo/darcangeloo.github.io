@@ -12,4 +12,18 @@ const log = defineCollection({
   }),
 });
 
-export const collections = { log };
+const progetti = defineCollection({
+  loader: glob({ pattern: "*.md", base: "./src/content/progetti" }),
+  schema: z.object({
+    nome: z.string(),
+    sintesi: z.string(),
+    metrica: z.string(),
+    tag: z.array(z.string()),
+    repoUrl: z.string().url().optional(),
+    aggiornato: z.coerce.date().optional(),
+    noindex: z.boolean().default(false),
+    ordine: z.number(),
+  }),
+});
+
+export const collections = { log, progetti };

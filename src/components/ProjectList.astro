@@ -1,15 +1,15 @@
 ---
-import { PROJECTS } from "../data/projects";
+import { getCollection } from "astro:content";
+const projects = (await getCollection("progetti")).sort((a, b) => a.data.ordine - b.data.ordine);
 ---
 <ul>
-  {PROJECTS.map((p) => (
+  {projects.map(({ id, data: p }) => (
     <li>
-      <div class="top"><h3>{p.nome}</h3><span class="mono metric">{p.metrica}</span></div>
-      <p>{p.descrizione}</p>
+      <div class="top"><h3><a href={`/progetti/${id}/`}>{p.nome}</a></h3><span class="mono metric">{p.metrica}</span></div>
+      <p>{p.sintesi}</p>
       <p class="mono muted meta">
         {p.tag.map((t) => <span>{t}</span>)}
         {p.repoUrl && <a href={p.repoUrl}>Repo</a>}
-        {p.logUrl && <a href={p.logUrl}>Log</a>}
       </p>
     </li>
   ))}
@@ -19,6 +19,8 @@ import { PROJECTS } from "../data/projects";
   li { padding: 16px 0; border-bottom: 1px solid var(--line); }
   .top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
   h3 { font-size: 22px; }
+  h3 a { color: var(--ink); text-decoration: none; }
+  h3 a:hover { color: var(--accent); }
   .metric { color: var(--accent); text-align: right; }
   p { margin: 4px 0 0; }
   .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }

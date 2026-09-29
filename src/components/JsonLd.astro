@@ -1,0 +1,19 @@
+---
+import { SITE } from "../config";
+
+interface Props { extra?: object[] }
+const { extra = [] } = Astro.props;
+const ok = (s: string) => !s.includes("[");
+const person = {
+  "@type": "Person",
+  "@id": new URL("/#person", Astro.site).href,
+  name: SITE.nome,
+  url: Astro.site!.href,
+  ...(ok(SITE.email) && { email: SITE.email }),
+  jobTitle: "Machine Learning Developer",
+  knowsAbout: ["Machine Learning", "Large Language Models", "MLOps", "Reinforcement Learning"],
+  sameAs: Object.values(SITE.links).filter(ok),
+};
+const json = JSON.stringify({ "@context": "https://schema.org", "@graph": [person, ...extra] }).replace(/</g, "\\u003c");
+---
+<script type="application/ld+json" set:html={json} />

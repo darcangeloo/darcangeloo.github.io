@@ -1,6 +1,6 @@
 ---
-import { getCollection } from "astro:content";
 import { SITE } from "../config";
+import { getPublishedPosts } from "../lib/posts";
 import Base from "../layouts/Base.astro";
 import Newsletter from "../components/Newsletter.astro";
 import PostList from "../components/PostList.astro";
@@ -8,12 +8,18 @@ import ProjectList from "../components/ProjectList.astro";
 import Book from "../components/Book.astro";
 import Services from "../components/Services.astro";
 
-const posts = (await getCollection("log", ({ data }) => !data.draft))
-  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
-  .slice(0, 3);
+const posts = (await getPublishedPosts()).slice(0, 3);
 const social = [["GitHub", SITE.links.github], ["Hugging Face", SITE.links.huggingface], ["LinkedIn", SITE.links.linkedin], ["Email", `mailto:${SITE.email}`]];
+const person = { "@id": new URL("/#person", Astro.site).href };
+const schema = [
+  { "@type": "WebSite", name: SITE.titolo, url: Astro.site!.href, inLanguage: "it" },
+  {
+    "@type": "Book", name: SITE.libro.titolo, author: person, inLanguage: "it", numberOfPages: 185,
+    ...(!SITE.libro.amazonUrl.includes("[") && { url: SITE.libro.amazonUrl }),
+  },
+];
 ---
-<Base>
+<Base schema={schema}>
   <section class="hero">
     <div class="txt">
       <p class="mono muted">MACHINE LEARNING · {SITE.luogo}</p>
@@ -30,8 +36,12 @@ const social = [["GitHub", SITE.links.github], ["Hugging Face", SITE.links.huggi
 
   <section id="log">
     <h2>Log</h2>
-    <PostList posts={posts} />
-    <p class="mono all"><a href="/log/">Tutti i post</a></p>
+    {posts.length ? (
+      <>
+        <PostList posts={posts} />
+        <p class="mono all"><a href="/log/">Tutti i post</a></p>
+      </>
+    ) : <p class="muted">Il primo post arriva a breve.</p>}
   </section>
 
   <section id="progetti"><h2>Progetti</h2><ProjectList /></section>
