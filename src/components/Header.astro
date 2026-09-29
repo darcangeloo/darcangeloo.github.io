@@ -1,0 +1,19 @@
+---
+import { SITE } from "../config";
+const nav = [["Log", "/#log"], ["Progetti", "/#progetti"], ["Libro", "/#libro"], ["Lavora con me", "/#lavora"]];
+---
+<header>
+  <a class="name" href="/">{SITE.nome}</a>
+  <nav aria-label="Principale">
+    {nav.map(([t, h]) => <a href={h}>{t}</a>)}
+    <a href="/#newsletter" class="nl">Newsletter</a>
+  </nav>
+</header>
+<style>
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px 24px; flex-wrap: wrap; padding: 24px 0; border-bottom: 1px solid var(--line); }
+  .name { font: 500 24px var(--serif); color: var(--ink); text-decoration: none; }
+  nav { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+  nav a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav a:hover { text-decoration: underline; }
+  nav .nl { color: var(--accent); font-weight: 600; }
+</style>

@@ -1,0 +1,22 @@
+---
+import { SITE } from "../config";
+const { titolo, descrizione, amazonUrl, copertina } = SITE.libro;
+---
+<div class="book">
+  {copertina
+    ? <img src={copertina} alt={`Copertina di ${titolo}`} width="180" height="260" />
+    : <div class="ph mono" role="img" aria-label="Copertina non ancora disponibile">[copertina]</div>}
+  <div>
+    <p class="mono muted">IL LIBRO</p>
+    <h3>{titolo}</h3>
+    <p>{descrizione}</p>
+    <a class="btn outline" href={amazonUrl}>Disponibile su Amazon</a>
+  </div>
+</div>
+<style>
+  .book { display: flex; gap: 28px; align-items: flex-start; }
+  img, .ph { width: 180px; height: 260px; flex: none; border-radius: 6px; object-fit: cover; }
+  .ph { background: var(--accent); color: var(--bg); display: flex; align-items: center; justify-content: center; }
+  h3 { font-style: italic; color: var(--accent); font-size: 30px; margin: 4px 0 12px; }
+  @media (max-width: 640px) { .book { flex-direction: column; } }
+</style>

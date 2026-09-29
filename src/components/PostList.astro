@@ -1,0 +1,26 @@
+---
+interface Props { posts: { id: string; data: { title: string; description: string; date: Date } }[] }
+const { posts } = Astro.props;
+const fmt = (d: Date) => d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+---
+<ul>
+  {posts.map((p) => (
+    <li>
+      <time class="mono muted" datetime={p.data.date.toISOString()}>{fmt(p.data.date)}</time>
+      <div>
+        <h3><a href={`/log/${p.id}/`}>{p.data.title}</a></h3>
+        <p>{p.data.description}</p>
+      </div>
+    </li>
+  ))}
+</ul>
+<style>
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: grid; grid-template-columns: 110px 1fr; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 22px; }
+  h3 a { color: var(--ink); text-decoration: none; }
+  h3 a:hover { color: var(--accent); }
+  p { margin: 4px 0 0; }
+  time { padding-top: 6px; }
+  @media (max-width: 640px) { li { grid-template-columns: 1fr; gap: 2px; } }
+</style>

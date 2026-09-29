@@ -1,0 +1,25 @@
+---
+import { PROJECTS } from "../data/projects";
+---
+<ul>
+  {PROJECTS.map((p) => (
+    <li>
+      <div class="top"><h3>{p.nome}</h3><span class="mono metric">{p.metrica}</span></div>
+      <p>{p.descrizione}</p>
+      <p class="mono muted meta">
+        {p.tag.map((t) => <span>{t}</span>)}
+        {p.repoUrl && <a href={p.repoUrl}>Repo</a>}
+        {p.logUrl && <a href={p.logUrl}>Log</a>}
+      </p>
+    </li>
+  ))}
+</ul>
+<style>
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+  h3 { font-size: 22px; }
+  .metric { color: var(--accent); text-align: right; }
+  p { margin: 4px 0 0; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+</style>

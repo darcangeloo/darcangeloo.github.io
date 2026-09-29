@@ -1,0 +1,12 @@
+---
+import { SITE } from "../config";
+---
+<footer>
+  <span>© {new Date().getFullYear()} {SITE.nome}</span>
+  <span class="mono">
+    <a href="/rss.xml">RSS</a> · <a href="/#newsletter">Newsletter</a> · <a href={SITE.links.github}>GitHub</a>
+  </span>
+</footer>
+<style>
+  footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 24px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+</style>
