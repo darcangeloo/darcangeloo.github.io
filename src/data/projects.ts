@@ -5,7 +5,7 @@ export const PROJECTS = [
     metrica: "~23 ms/decisione · AG News 88.5%",
     descrizione: "Decisioni tipizzate da un LLM locale leggendo i logit, senza generare testo. Un solo forward pass per decisione, con prefix caching su llama.cpp.",
     tag: ["llama.cpp", "Qwen3-4B", "FastAPI"],
-    repoUrl: "https://github.com/darcangeloo/[nome-repo]",
+    repoUrl: "https://github.com/darcangeloo/zerotok",
     logUrl: "",
   },
   {
