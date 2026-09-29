@@ -34,7 +34,7 @@ export const SITE = {
     // Link Amazon del libro.
     amazonUrl: "https://www.amazon.it/Insegnare-alle-Macchine-Learning-progetti/dp/B0HJXJ3M8C/ref=tmm_pap_swatch_0?_encoding=UTF8&dib_tag=se&dib=eyJ2IjoiMSJ9.vQkZIRsJmaL1cTCWsW7ZOa5bOa7sV5gKy0gx9zaHXBtx7XGTeMduxO3RER5Qj8Waq3j7r4ePSvXaHtkBjjDEbYr-S-KXLl8VhoKA_XQMZNdTW_9KBzIHOPYotYbP5RgQ4FUdmbteYCmhGV9sPLIpOwc6wFn-Tmq1bagu1-BWK3N4rZwi6nS-UyKNBQ_DD9yVui5l1SNd1e-b5TAniC6ihUCmrTpRlcoeKTKBrJ17WJhCiPDTvn32yf3L-CNQgHXT2oha0RgFfBitStem0QiQOjdzilo6plpTyn3-2D4Pbkg.MxIq1ZkpVFk6qSLEY9iSIahzdLEa-mycZqM2T7rrwmQ&qid=1790698775&sr=8-23",
     // Percorso immagine copertina, es. "/copertina.jpg" (file in public/). Vuoto = placeholder.
-    copertina: "copertina.png",
+    copertina: "copertina.jpeg",
   },
   // Percorso foto, es. "/foto.jpg" (file in public/). Vuoto = cerchio placeholder.
   foto: "io.jpeg",
