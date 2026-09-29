@@ -1,7 +1,7 @@
 ---
 title: "Decisioni da un LLM in 44 ms, senza generare testo"
 description: "Come zerotok legge i logit di un LLM locale invece di farlo scrivere, cosa ha misurato il prefix caching e dove il metodo non funziona."
-date: 2026-09-30
+date: 2026-09-29
 draft: false
 ---
 
