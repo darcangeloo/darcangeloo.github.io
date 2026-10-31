@@ -145,12 +145,13 @@ const schema = [
     width: 176px; aspect-ratio: 1; border-radius: 8px; overflow: hidden;
     border: 2px solid rgba(247, 245, 239, .4); box-shadow: 0 16px 28px -10px rgba(0, 0, 0, .5);
     transform: rotate(-3deg); transition: transform .4s ease;
+    container-type: inline-size;
   }
   .feature:hover .mini { transform: rotate(0deg) scale(1.03); }
   .mq { display: flex; align-items: center; justify-content: center; }
   .mq.l { background: #eff1e6; }
   .mq.d { background: #8daf9d; }
-  .mp { font-size: 32px; line-height: 1; filter: drop-shadow(0 1.5px 1px rgba(28, 27, 24, .35)); animation: float 4s ease-in-out infinite; animation-delay: calc(var(--i) * -.37s); }
+  .mp { font-size: 32px; font-size: 18cqw; line-height: 1; filter: drop-shadow(0 1.5px 1px rgba(28, 27, 24, .35)); animation: float 4s ease-in-out infinite; animation-delay: calc(var(--i) * -.37s); }
   .mp.w { color: #fff; -webkit-text-stroke: 1.2px var(--ink); paint-order: stroke fill; }
   .mp.b { color: var(--ink); }
   @keyframes float { 50% { transform: translateY(-3px); } }
@@ -161,8 +162,9 @@ const schema = [
   @media (max-width: 640px) {
     .hero { flex-direction: column-reverse; }
     h1 { font-size: 34px; }
-    .feature { padding: 24px 20px; }
+    /* su telefono la scacchiera sta in alto, centrata, sopra il testo */
+    .feature { flex-direction: column-reverse; align-items: flex-start; gap: 22px; padding: 24px 20px; }
     .feature h2 { font-size: 28px; }
-    .mini { display: none; }
+    .mini { align-self: center; width: 132px; }
   }
 </style>
