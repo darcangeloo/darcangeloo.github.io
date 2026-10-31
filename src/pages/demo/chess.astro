@@ -1,0 +1,491 @@
+---
+import Base from "../../layouts/Base.astro";
+
+const files = "abcdefgh".split("");
+const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
+---
+<Base
+  title="Demo Chess-GPT"
+  description="Gioca a scacchi contro Chess-GPT, un modello da 41M parametri allenato da zero su partite Lichess."
+  noindex
+>
+  <article>
+    <p class="mono muted"><a href="/#progetti">← Progetti</a> · <a href="/progetti/chess-gpt/">Scheda progetto</a></p>
+    <h1>Gioca contro Chess-GPT</h1>
+    <p class="note">
+      Chess-GPT è un modello da 41M parametri allenato da zero su partite Lichess: può giocare male,
+      e il server di casa su cui gira può essere spento. Tu giochi col bianco.
+    </p>
+
+    <div class="stage">
+      <div id="bar-model" class="bar" data-active="false" data-thinking="false">
+        <span class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></span>
+        <span class="who"><strong>Chess-GPT</strong><span class="mono muted">Nero</span></span>
+        <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="took" id="took-w" role="img" aria-label="Nessun pezzo catturato"></span>
+      </div>
+
+      <div id="board" role="grid" aria-label="Scacchiera: usa le frecce per muoverti, Invio per selezionare e muovere">
+        {ranks.map((rank) => (
+          <div role="row" class="rank">
+            {files.map((file, fi) => {
+              const sq = `${file}${rank}`;
+              const coord = rank === 1 ? (fi === 0 ? sq : file) : fi === 0 ? String(rank) : "";
+              return (
+                <button
+                  type="button"
+                  role="gridcell"
+                  class={`sq ${(fi + rank) % 2 === 1 ? "dark" : "light"}`}
+                  data-sq={sq}
+                  data-coord={coord}
+                  tabindex={sq === "e2" ? 0 : -1}
+                  disabled
+                >
+                  <span class="piece" aria-hidden="true"></span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      <div id="bar-user" class="bar" data-active="false">
+        <span class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></span>
+        <span class="who"><strong>Tu</strong><span class="mono muted">Bianco</span></span>
+        <span class="took" id="took-b" role="img" aria-label="Nessun pezzo catturato"></span>
+      </div>
+
+      <div class="banner" id="banner" data-tone="think">
+        <svg class="i-turn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="7" r="3"/><path d="M8.5 21h7M9.5 21c0-4 .7-6.2 2.5-8.2 1.8 2 2.5 4.2 2.5 8.2"/></svg>
+        <svg class="i-think" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3a9 9 0 1 0 9 9"/></svg>
+        <svg class="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <svg class="i-end" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>
+        <svg class="i-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
+        <p id="status" role="status" aria-live="polite">Controllo il server…</p>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn" id="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>Nuova partita</button>
+        <button type="button" class="btn outline" id="undo" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Annulla ultima coppia di mosse</button>
+        <button type="button" class="btn outline" id="retry" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Riprova</button>
+      </div>
+    </div>
+
+    <h2>Mosse</h2>
+    <ol id="moves" class="mono" aria-label="Mosse in notazione algebrica"></ol>
+    <noscript><p>Serve JavaScript per giocare.</p></noscript>
+  </article>
+</Base>
+
+<style>
+  article { padding: 32px 0 48px; }
+  h1 { font-size: 40px; line-height: 1.15; margin: 8px 0 16px; }
+  h2 { font-size: 22px; margin: 28px 0 8px; }
+  .note { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text); }
+
+  .stage { width: min(100%, 480px); margin-top: 20px; }
+  .stage > * { animation: rise .5s ease-out both; }
+  .stage > :nth-child(2) { animation-delay: .06s; }
+  .stage > :nth-child(3) { animation-delay: .12s; }
+  .stage > :nth-child(4) { animation-delay: .18s; }
+  .stage > :nth-child(5) { animation-delay: .24s; }
+
+  /* barre giocatore */
+  .bar {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+    background: #fbfaf6; border: 1px solid var(--line); border-radius: 10px;
+    transition: border-color .25s, box-shadow .25s;
+  }
+  #bar-model { margin-bottom: 10px; }
+  #bar-user { margin-top: 10px; }
+  .bar[data-active="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31, 95, 74, .12); }
+  .avatar { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+  .avatar svg { width: 20px; height: 20px; }
+  .bar[data-thinking="true"] .avatar { animation: breathe 1.6s ease-in-out infinite; }
+  .who { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+  .who strong { color: var(--ink); font-size: 15px; font-weight: 600; }
+  .dots { display: flex; gap: 4px; opacity: 0; transition: opacity .25s; }
+  .bar[data-thinking="true"] .dots { opacity: 1; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: bounce 1s ease-in-out infinite; }
+  .dots i:nth-child(2) { animation-delay: .15s; }
+  .dots i:nth-child(3) { animation-delay: .3s; }
+  .took { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; min-height: 22px; }
+  .took :global(.cap) { font-size: 18px; line-height: 1; }
+  .took :global(.cap.w) { color: #fff; -webkit-text-stroke: 1px var(--ink); paint-order: stroke fill; }
+  .took :global(.cap.b) { color: var(--ink); }
+  .took :global(.cap.new) { animation: pop .3s ease-out; }
+
+  /* scacchiera */
+  #board {
+    --light: #eff1e6; --dark: #8daf9d;
+    position: relative;
+    container-type: inline-size;
+    width: 100%;
+    border: 2px solid var(--accent);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(28, 27, 24, .2), 0 14px 28px -10px rgba(28, 27, 24, .35);
+  }
+  #board::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(160deg, rgba(255, 255, 255, .14), rgba(0, 0, 0, .07));
+  }
+  .rank { display: grid; grid-template-columns: repeat(8, 1fr); }
+  .sq {
+    position: relative; aspect-ratio: 1; padding: 0; border: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--sans);
+    transition: background-color .15s, box-shadow .2s, opacity .4s;
+  }
+  .sq.light { background: var(--light); }
+  .sq.dark { background: var(--dark); }
+  .sq:not(:disabled):hover { box-shadow: inset 0 0 0 100px rgba(31, 95, 74, .12); }
+  .sq:disabled { cursor: not-allowed; opacity: .55; }
+  .sq.moving { z-index: 2; }
+  .sq::after {
+    content: attr(data-coord); position: absolute; left: 3px; bottom: 1px;
+    font: 500 10px var(--mono); color: var(--ink); opacity: .75; pointer-events: none;
+  }
+  .sq.last { box-shadow: inset 0 0 0 100px rgba(31, 95, 74, .25); }
+  .sq.sel { box-shadow: inset 0 0 0 4px var(--accent); }
+  .sq.check { background-image: radial-gradient(circle, rgba(181, 72, 58, .6) 0, rgba(181, 72, 58, 0) 72%); animation: warm 1.6s ease-in-out infinite; }
+  .sq.hit { animation: hit .55s ease-out; }
+  .sq.target::before {
+    content: ""; position: absolute; width: 30%; height: 30%; border-radius: 50%;
+    background: var(--accent); opacity: .85; pointer-events: none; animation: pop .18s ease-out;
+  }
+  .sq.target:has(.has-piece)::before { width: 88%; height: 88%; background: none; border: 4px solid var(--accent); }
+  .sq:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; z-index: 1; }
+
+  .piece { font-size: 10cqw; line-height: 1; transition: transform .15s ease-out; filter: drop-shadow(0 1.5px 1px rgba(28, 27, 24, .35)); }
+  .sq.sel .piece { transform: scale(1.12); }
+  .piece.w { color: #fff; -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; }
+  .piece.b { color: var(--ink); }
+
+  /* stato */
+  .banner {
+    display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 14px;
+    border-radius: 10px; background: var(--accent-soft); color: var(--ink);
+    transition: background-color .3s, color .3s;
+  }
+  .banner svg { display: none; width: 20px; height: 20px; flex: none; }
+  .banner[data-tone="turn"] .i-turn, .banner[data-tone="think"] .i-think, .banner[data-tone="warn"] .i-warn,
+  .banner[data-tone="end"] .i-end, .banner[data-tone="off"] .i-off { display: block; }
+  .banner[data-tone="warn"] { background: #f3e3dc; color: #6b2417; }
+  .banner[data-tone="end"] { background: var(--accent); color: var(--bg); }
+  .banner[data-tone="off"] { background: var(--line); }
+  .i-think { animation: spin 1s linear infinite; }
+  #status { margin: 0; font-weight: 500; min-height: 1.6em; }
+  #status.swap { animation: fade .3s ease-out; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+  .actions .btn { transition: transform .12s, background-color .15s, opacity .2s; }
+  .actions .btn svg { width: 18px; height: 18px; margin-right: 8px; flex: none; transition: transform .25s; }
+  .actions .btn:not(:disabled):hover { transform: translateY(-2px); }
+  .actions .btn:not(:disabled):active { transform: scale(.97); }
+  #new:not(:disabled):hover svg { transform: rotate(90deg); }
+  #undo:not(:disabled):hover svg { transform: translateX(-2px) rotate(-12deg); }
+  #retry:not(:disabled):hover svg { transform: rotate(180deg); }
+  .actions .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .actions [hidden] { display: none; }
+
+  /* lista mosse */
+  #moves { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 0; padding: 0; list-style: none; min-height: 1.6em; }
+  #moves:empty::before { content: "Nessuna mossa ancora."; color: var(--muted); font-family: var(--sans); }
+  #moves :global(li) { padding: 2px 10px; border-radius: 999px; background: #fbfaf6; border: 1px solid var(--line); }
+  #moves :global(li.new) { background: var(--accent-soft); border-color: var(--accent); animation: slide-in .3s ease-out; }
+
+  @keyframes pop { from { transform: scale(.3); opacity: 0; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes bounce { 50% { transform: translateY(-4px); } }
+  @keyframes breathe { 50% { box-shadow: 0 0 0 5px rgba(31, 95, 74, .15); } }
+  @keyframes warm { 50% { box-shadow: inset 0 0 0 100px rgba(181, 72, 58, .25); } }
+  @keyframes hit { from { box-shadow: inset 0 0 0 100px rgba(31, 95, 74, .5); } }
+  @keyframes fade { from { opacity: 0; transform: translateY(3px); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes slide-in { from { opacity: 0; transform: translateX(-8px); } }
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after { animation: none !important; transition: none !important; }
+  }
+  @media (max-width: 640px) { h1 { font-size: 30px; } }
+</style>
+
+<script>
+  import { Chess, type Square, type PieceSymbol, type Color } from "chess.js";
+
+  const API = (import.meta.env.PUBLIC_API_URL ?? "").replace(/\/$/, "");
+  const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+  const boardEl = get("board"), statusEl = get("status"), movesEl = get("moves");
+  const newBtn = get<HTMLButtonElement>("new"), undoBtn = get<HTMLButtonElement>("undo"), retryBtn = get<HTMLButtonElement>("retry");
+  const bannerEl = get("banner"), barModel = get("bar-model"), barUser = get("bar-user");
+  const squares = Array.from(boardEl.querySelectorAll<HTMLButtonElement>("button[data-sq]"));
+  const bySq = new Map(squares.map((b) => [b.dataset.sq as Square, b]));
+
+  // ︎ forza il glifo testuale: senza, ♟ diventa un'emoji su alcune piattaforme.
+  const GLYPH: Record<PieceSymbol, string> = { k: "♚︎", q: "♛︎", r: "♜︎", b: "♝︎", n: "♞︎", p: "♟︎" };
+  const NAME: Record<PieceSymbol, [string, string]> = {
+    p: ["pedone bianco", "pedone nero"], n: ["cavallo bianco", "cavallo nero"], b: ["alfiere bianco", "alfiere nero"],
+    r: ["torre bianca", "torre nera"], q: ["regina bianca", "regina nera"], k: ["re bianco", "re nero"],
+  };
+
+  let chess = new Chess();
+  let online = false, checking = true, busy = false;
+  let selected: Square | null = null;
+  let targets = new Set<Square>();
+  let last: [Square, Square] | null = null;
+  let msg = "";
+  let retry: (() => void) | null = null;
+  let slide: [Square, Square] | null = null; // ultima mossa da animare al prossimo render
+  let plies = 0;
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let gen = 0; // invalida le risposte in volo dopo nuova partita / annulla
+  let ctrl: AbortController | null = null;
+
+  const canPlay = () => online && !busy && !chess.isGameOver() && chess.turn() === "w";
+
+  // Esito della partita secondo chess.js, con il motivo.
+  function result() {
+    if (chess.isCheckmate()) return chess.turn() === "b" ? "Scacco matto: hai vinto." : "Scacco matto: ha vinto il modello.";
+    if (chess.isStalemate()) return "Stallo: patta, chi deve muovere non ha mosse legali.";
+    if (chess.isInsufficientMaterial()) return "Patta per materiale insufficiente.";
+    if (chess.isThreefoldRepetition()) return "Patta per triplice ripetizione.";
+    if (chess.isDrawByFiftyMoves()) return "Patta per la regola delle cinquanta mosse.";
+    return "Partita patta.";
+  }
+
+  // Icona/colore del banner di stato.
+  function tone() {
+    if (checking) return "think";
+    if (!online) return "off";
+    if (chess.isGameOver()) return "end";
+    if (msg) return "warn";
+    return busy ? "think" : "turn";
+  }
+
+  // Pezzi catturati, ordinati per valore, nella barra di chi li ha presi.
+  const ORDER = "pnbrq";
+  function tray(el: HTMLElement, list: PieceSymbol[], color: Color) {
+    const prev = el.childElementCount;
+    list.sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
+    el.replaceChildren(
+      ...list.map((t, i) => {
+        const s = document.createElement("span");
+        s.className = `cap ${color}` + (i >= prev && list.length > prev ? " new" : "");
+        s.textContent = GLYPH[t];
+        return s;
+      }),
+    );
+    el.setAttribute("aria-label", list.length ? `Catturati: ${list.map((t) => NAME[t][color === "w" ? 0 : 1]).join(", ")}` : "Nessun pezzo catturato");
+  }
+
+  function statusText() {
+    if (checking) return "Controllo il server…";
+    if (!online) return API ? "Demo offline, riprova più tardi." : "Demo offline, riprova più tardi (server non configurato).";
+    if (chess.isGameOver()) return result();
+    if (msg) return msg;
+    if (busy) return "Il modello sta pensando…";
+    return chess.inCheck() ? "Tocca a te (bianco). Sei sotto scacco." : "Tocca a te (bianco).";
+  }
+
+  function render() {
+    for (const [sq, b] of bySq) {
+      const p = chess.get(sq);
+      const piece = b.firstElementChild as HTMLElement;
+      piece.textContent = p ? GLYPH[p.type] : "";
+      piece.className = "piece" + (p ? ` ${p.color} has-piece` : "");
+      b.setAttribute("aria-label", `${sq}: ${p ? NAME[p.type][p.color === "w" ? 0 : 1] : "vuota"}`);
+      b.disabled = !online || chess.isGameOver();
+      b.setAttribute("aria-pressed", String(sq === selected));
+      b.classList.toggle("sel", sq === selected);
+      b.classList.toggle("target", targets.has(sq));
+      b.classList.toggle("last", !!last && (sq === last[0] || sq === last[1]));
+      b.classList.toggle("check", chess.inCheck() && p?.type === "k" && p.color === chess.turn());
+    }
+    const over = chess.isGameOver();
+    bannerEl.dataset.tone = tone();
+    barUser.dataset.active = String(online && !over && chess.turn() === "w");
+    barModel.dataset.active = String(online && !over && chess.turn() === "b");
+    barModel.dataset.thinking = String(busy);
+    const lost: Record<Color, PieceSymbol[]> = { w: [], b: [] };
+    for (const m of chess.history({ verbose: true })) if (m.captured) lost[m.color === "w" ? "b" : "w"].push(m.captured);
+    tray(get("took-b"), lost.b, "b"); // pezzi neri presi da te
+    tray(get("took-w"), lost.w, "w"); // pezzi bianchi presi dal modello
+    const text = statusText();
+    if (text !== statusEl.textContent) {
+      statusEl.textContent = text;
+      statusEl.classList.remove("swap");
+      void statusEl.offsetWidth; // riavvia l'animazione
+      statusEl.classList.add("swap");
+    }
+    undoBtn.disabled = busy || chess.history().length === 0;
+    retryBtn.hidden = !retry;
+
+    const h = chess.history();
+    movesEl.replaceChildren(
+      ...Array.from({ length: Math.ceil(h.length / 2) }, (_, i) => {
+        const li = document.createElement("li");
+        li.textContent = `${i + 1}. ${h[2 * i]}${h[2 * i + 1] ? " " + h[2 * i + 1] : ""}`;
+        return li;
+      }),
+    );
+    if (h.length > plies && movesEl.lastElementChild) movesEl.lastElementChild.classList.add("new");
+    plies = h.length;
+
+    if (slide && !calm) {
+      const from = bySq.get(slide[0])!, to = bySq.get(slide[1])!;
+      const a = from.getBoundingClientRect(), z = to.getBoundingClientRect();
+      const done = () => to.classList.remove("moving");
+      to.classList.add("moving");
+      if (chess.history({ verbose: true }).at(-1)?.captured) {
+        to.classList.add("hit");
+        setTimeout(() => to.classList.remove("hit"), 600);
+      }
+      to.firstElementChild!
+        .animate([{ transform: `translate(${a.left - z.left}px, ${a.top - z.top}px)` }, { transform: "none" }], { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" })
+        .finished.then(done, done);
+      setTimeout(done, 400); // rete di sicurezza se il browser non porta a termine l'animazione
+    }
+    slide = null;
+  }
+
+  function syncLast() {
+    const m = chess.history({ verbose: true }).at(-1);
+    last = m ? [m.from, m.to] : null;
+  }
+
+  function clearSel() { selected = null; targets = new Set(); }
+
+  async function checkHealth() {
+    checking = true; retry = null; render();
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 5000);
+    try {
+      online = !!API && (await fetch(`${API}/health`, { signal: c.signal })).ok;
+    } catch {
+      online = false;
+    } finally {
+      clearTimeout(t);
+    }
+    checking = false;
+    retry = online || !API ? null : checkHealth;
+    render();
+  }
+
+  function fail(text: string, canRetry: boolean) {
+    msg = text;
+    retry = canRetry ? askModel : null;
+  }
+
+  async function askModel() {
+    const my = ++gen;
+    ctrl?.abort();
+    const c = (ctrl = new AbortController());
+    const t = setTimeout(() => c.abort(), 10_000);
+    busy = true; retry = null; msg = ""; render();
+    try {
+      const res = await fetch(`${API}/chess/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ moves: chess.history() }),
+        signal: c.signal,
+      });
+      if (my !== gen) return;
+      if (res.status === 400) {
+        const body = await res.json().catch(() => null);
+        if (my !== gen) return;
+        const detail = typeof body?.detail === "string" ? body.detail.trim().toLowerCase() : "";
+        if (detail === "partita finita") {
+          // la mossa era valida: l'esito lo mostra chess.js (render() in finally)
+          if (!chess.isGameOver()) fail("Il server dice che la partita è finita.", false);
+        } else {
+          chess.undo(); syncLast();
+          fail("Il server ha rifiutato la mossa: l'ho annullata, prova con un'altra.", false);
+        }
+      } else if (res.status === 503) {
+        fail("Il server è occupato. Riprova tra qualche secondo.", true);
+      } else if (res.status === 413) {
+        fail("Il server ha rifiutato la richiesta perché troppo grande. Riprova, oppure inizia una nuova partita.", true);
+      } else if (!res.ok) {
+        fail(`Errore del server (HTTP ${res.status}).`, true);
+      } else {
+        const data = await res.json().catch(() => null);
+        if (my !== gen) return;
+        applyModelMove(data?.san, data?.uci);
+      }
+    } catch {
+      if (my !== gen) return;
+      fail(c.signal.aborted ? "Il server non ha risposto entro 10 secondi." : "Server non raggiungibile.", true);
+    } finally {
+      clearTimeout(t);
+      if (my === gen) { busy = false; render(); }
+    }
+  }
+
+  function applyModelMove(san: unknown, uci: unknown) {
+    let m = null;
+    try { m = typeof san === "string" ? chess.move(san) : null; } catch { /* mossa illegale */ }
+    if (m && typeof uci === "string" && uci !== m.from + m.to + (m.promotion ?? "")) {
+      chess.undo(); m = null; // san e uci non coincidono: non fidarsi
+    }
+    if (!m) return fail(`Il modello ha proposto una mossa non valida (${typeof san === "string" ? san : "risposta malformata"}): non l'ho giocata.`, true);
+    slide = [m.from, m.to];
+    syncLast();
+  }
+
+  function onSquare(sq: Square) {
+    if (!canPlay()) return;
+    if (selected && targets.has(sq)) {
+      chess.move({ from: selected, to: sq, promotion: "q" }); // ponytail: promozione sempre a regina
+      slide = [selected, sq];
+      clearSel(); syncLast();
+      if (chess.isGameOver()) render(); else askModel(); // partita finita: niente chiamata all'API
+      return;
+    }
+    if (chess.get(sq)?.color === "w") {
+      selected = sq;
+      targets = new Set(chess.moves({ square: sq, verbose: true }).map((m) => m.to));
+    } else clearSel();
+    render();
+  }
+
+  boardEl.addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-sq]");
+    if (b) onSquare(b.dataset.sq as Square);
+  });
+
+  boardEl.addEventListener("focusin", (e) => squares.forEach((b) => (b.tabIndex = b === e.target ? 0 : -1)));
+
+  boardEl.addEventListener("keydown", (e) => {
+    const sq = (e.target as HTMLElement).dataset.sq;
+    if (!sq) return;
+    if (e.key === "Escape") { clearSel(); render(); return; }
+    let f = "abcdefgh".indexOf(sq[0]), r = Number(sq[1]);
+    if (e.key === "ArrowLeft") f--;
+    else if (e.key === "ArrowRight") f++;
+    else if (e.key === "ArrowUp") r++;
+    else if (e.key === "ArrowDown") r--;
+    else return;
+    e.preventDefault();
+    bySq.get(`${"abcdefgh"[f]}${r}` as Square)?.focus();
+  });
+
+  newBtn.addEventListener("click", () => {
+    gen++; ctrl?.abort();
+    chess = new Chess(); busy = false; msg = ""; retry = online || !API ? null : checkHealth;
+    clearSel(); last = null; render();
+  });
+
+  undoBtn.addEventListener("click", () => {
+    if (busy) return;
+    gen++;
+    // turno del nero = la mossa del bianco è senza risposta: ne annullo una sola
+    const n = chess.turn() === "b" ? 1 : 2;
+    for (let i = 0; i < n; i++) chess.undo();
+    msg = ""; retry = null; clearSel(); syncLast(); render();
+  });
+
+  retryBtn.addEventListener("click", () => retry?.());
+
+  render();
+  checkHealth();
+</script>
