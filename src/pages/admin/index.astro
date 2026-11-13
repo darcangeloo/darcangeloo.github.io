@@ -18,6 +18,7 @@
       <header class="top">
         <h1>Newsletter</h1>
         <div class="top-right">
+          <span id="subs" class="mono muted" hidden></span>
           <span id="deploy" class="mono muted" hidden></span>
           <button id="logout" class="link" hidden>Scollega</button>
         </div>
@@ -119,6 +120,8 @@
       const BRANCH = "main";
       const DIR = "src/content/log";
       const SITE = "https://darcangeloo.github.io";
+      // Stesso campaignId del widget di iscrizione (src/components/Newsletter.astro).
+      const FEEDLETTER_CAMPAIGN = "ea20c7c7-bd1e-4560-aa22-713b946c2ba6";
       const $ = (id: string) => document.getElementById(id) as any;
 
       // ---------- token ----------
@@ -421,6 +424,15 @@
         } catch { $("deploy").hidden = true; }
       }
 
+      // ---------- iscritti (endpoint pubblico di FeedLetter, senza chiave) ----------
+      async function loadSubs() {
+        try {
+          const r = await fetch(`https://www.feed-letter.com/api/widget-subscriber-count?campaignId=${FEEDLETTER_CAMPAIGN}`);
+          const d = await r.json();
+          if (d.ok && typeof d.count === "number") { $("subs").textContent = `${d.count} ${d.count === 1 ? "iscritto" : "iscritti"}`; $("subs").hidden = false; }
+        } catch { $("subs").hidden = true; }
+      }
+
       // ---------- avvio ----------
       async function reload() {
         try { await loadPosts(); }
@@ -431,7 +443,7 @@
       }
       async function start() {
         if (!token) { show("login"); return; }
-        show("list"); pollDeploy(); await reload();
+        show("list"); pollDeploy(); loadSubs(); await reload();
       }
       $("login-form").addEventListener("submit", async (e: Event) => {
         e.preventDefault();
@@ -446,7 +458,7 @@
       });
       $("logout").addEventListener("click", async () => {
         if (dirty && !(await confirmDialog("Modifiche non salvate", "Se ti scolleghi le perdi.", "Scollega", true))) return;
-        dirty = false; clearToken(); token = ""; current = null; posts = []; $("deploy").hidden = true; show("login");
+        dirty = false; clearToken(); token = ""; current = null; posts = []; $("deploy").hidden = true; $("subs").hidden = true; show("login");
       });
       start();
     </script>

@@ -34,9 +34,6 @@ const schema = [
       <p>Sviluppatore, autore di <em>Insegnare alle Macchine</em>. Lavoro su modelli linguistici, MLOps e sto imparando reinforcement learning.</p>
       <p class="mono links">{social.map(([t, h]) => <a href={h}>{t}</a>)}</p>
     </div>
-    {SITE.foto
-      ? <img src={SITE.foto} alt={`Foto di ${SITE.nome}`} width="148" height="148" />
-      : <div class="ph mono" role="img" aria-label="Foto non ancora disponibile">[foto]</div>}
   </section>
 
   <Newsletter />
@@ -92,11 +89,8 @@ const schema = [
   </section>
 </Base>
 <style>
-  .hero { display: flex; gap: 32px; align-items: flex-start; justify-content: space-between; }
   h1 { font-size: 52px; line-height: 1.1; margin: 8px 0 20px; }
   .links { display: flex; flex-wrap: wrap; gap: 4px 18px; }
-  img, .ph { width: 148px; height: 148px; border-radius: 50%; flex: none; object-fit: cover; }
-  .ph { background: var(--accent-soft); color: var(--muted); display: flex; align-items: center; justify-content: center; }
   .all { margin-top: 16px; }
 
   /* sezione in evidenza: prova Chess-GPT */
@@ -160,7 +154,6 @@ const schema = [
     .mp { animation: none; }
   }
   @media (max-width: 640px) {
-    .hero { flex-direction: column-reverse; }
     h1 { font-size: 34px; }
     /* su telefono la scacchiera sta in alto, centrata, sopra il testo */
     .feature { flex-direction: column-reverse; align-items: flex-start; gap: 22px; padding: 24px 20px; }

@@ -36,6 +36,4 @@ export const SITE = {
     // Percorso immagine copertina, es. "/copertina.jpg" (file in public/). Vuoto = placeholder.
     copertina: "copertina.jpeg",
   },
-  // Percorso foto, es. "/foto.jpg" (file in public/). Vuoto = cerchio placeholder.
-  foto: "io.jpeg",
 };
