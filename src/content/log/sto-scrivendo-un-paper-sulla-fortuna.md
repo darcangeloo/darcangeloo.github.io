@@ -2,7 +2,7 @@
 title: "Sto scrivendo un paper sulla fortuna"
 description: "Il modello sullo spostamento delle probabilità."
 date: 2026-11-13
-draft: true
+draft: false
 ---
 
 Ciao,
