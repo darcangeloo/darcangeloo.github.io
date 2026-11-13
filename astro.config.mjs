@@ -10,5 +10,5 @@ const noindex = readdirSync(dir)
 
 export default defineConfig({
   site: "https://darcangeloo.github.io",
-  integrations: [sitemap({ filter: (page) => !noindex.some((n) => page.endsWith(n)) })],
+  integrations: [sitemap({ filter: (page) => !page.includes("/admin/") && !noindex.some((n) => page.endsWith(n)) })],
 });

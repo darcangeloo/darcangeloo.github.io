@@ -1,0 +1,530 @@
+---
+// Pannello privato per gestire i post del Log (e quindi la newsletter, che parte dal feed RSS).
+// Non è collegato da nessuna parte, è noindex ed è fuori dalla sitemap.
+// Funziona solo con un token GitHub personale: senza, la pagina non può leggere né scrivere nulla.
+---
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Newsletter · pannello</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <h1>Newsletter</h1>
+        <div class="top-right">
+          <span id="deploy" class="mono muted" hidden></span>
+          <button id="logout" class="link" hidden>Scollega</button>
+        </div>
+      </header>
+
+      <!-- 1. Connessione -->
+      <section id="view-login" hidden>
+        <p>Questa pagina modifica i post direttamente nel repository GitHub. Serve un token personale che resta solo nel tuo browser.</p>
+        <ol class="steps">
+          <li>Apri <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">GitHub → nuovo token</a>.</li>
+          <li><b>Repository access</b>: solo <code>darcangeloo/darcangeloo.github.io</code>.</li>
+          <li><b>Permissions</b>: <code>Contents</code> → Read and write. Facoltativo: <code>Actions</code> → Read, per vedere lo stato del deploy.</li>
+          <li>Scegli una scadenza (es. 90 giorni), genera e incolla qui sotto.</li>
+        </ol>
+        <form id="login-form" class="card stack">
+          <label for="token">Token</label>
+          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" required />
+          <label class="check"><input id="remember" type="checkbox" checked /> Ricordami su questo dispositivo</label>
+          <button class="btn" type="submit">Collega</button>
+          <p id="login-error" class="error" role="alert" hidden></p>
+        </form>
+      </section>
+
+      <!-- 2. Elenco -->
+      <section id="view-list" hidden>
+        <div class="bar">
+          <div class="tabs" role="tablist" id="tabs">
+            <button role="tab" data-f="all" aria-selected="true">Tutti</button>
+            <button role="tab" data-f="draft" aria-selected="false">Bozze</button>
+            <button role="tab" data-f="scheduled" aria-selected="false">Programmati</button>
+            <button role="tab" data-f="published" aria-selected="false">Pubblicati</button>
+          </div>
+          <button id="new" class="btn small">+ Nuovo post</button>
+        </div>
+        <p id="list-loading" class="muted">Carico i post…</p>
+        <ul id="posts" class="posts"></ul>
+        <p id="list-empty" class="muted" hidden>Nessun post in questa categoria.</p>
+        <p class="hint">Come funziona l'invio: la newsletter parte dal feed RSS del sito. Un post esce quando è pubblicato (non bozza) e la sua data è arrivata; i post programmati vanno online con il deploy giornaliero (06:00 UTC, circa 07:00 in Italia d'inverno, 08:00 d'estate).</p>
+      </section>
+
+      <!-- 3. Editor -->
+      <section id="view-editor" hidden>
+        <p><button id="back" class="link">← Tutti i post</button> <span id="slug-label" class="mono muted"></span></p>
+        <form id="editor" class="stack" autocomplete="off">
+          <label for="f-title">Titolo</label>
+          <input id="f-title" type="text" required />
+
+          <label for="f-desc">Descrizione <span class="muted">(compare nell'elenco e nella mail) · <span id="desc-count">0</span> caratteri</span></label>
+          <textarea id="f-desc" rows="2" required></textarea>
+
+          <div class="row">
+            <div>
+              <label for="f-state">Stato</label>
+              <select id="f-state">
+                <option value="draft">Bozza</option>
+                <option value="live">Pubblica</option>
+              </select>
+            </div>
+            <div>
+              <label for="f-date">Data <span class="muted">(UTC)</span></label>
+              <input id="f-date" type="date" required />
+            </div>
+          </div>
+          <p id="state-hint" class="hint"></p>
+
+          <div class="tabs" role="tablist" id="edtabs">
+            <button type="button" role="tab" data-t="write" aria-selected="true">Scrivi</button>
+            <button type="button" role="tab" data-t="preview" aria-selected="false">Anteprima</button>
+          </div>
+          <textarea id="f-body" rows="22" spellcheck="true" aria-label="Testo del post in Markdown"></textarea>
+          <iframe id="preview" title="Anteprima" sandbox="" hidden></iframe>
+
+          <p id="ed-error" class="error" role="alert" hidden></p>
+          <div class="actions">
+            <button id="save" class="btn" type="submit">Salva bozza</button>
+            <a id="open-live" class="btn outline" target="_blank" rel="noopener noreferrer" hidden>Apri sul sito</a>
+            <button id="delete" class="btn outline danger" type="button" hidden>Elimina</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <dialog id="dlg">
+      <form method="dialog">
+        <h2 id="dlg-title"></h2>
+        <p id="dlg-text"></p>
+        <div class="actions">
+          <button id="dlg-ok" class="btn" value="ok"></button>
+          <button class="btn outline" value="cancel">Annulla</button>
+        </div>
+      </form>
+    </dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      import { marked } from "marked";
+
+      const REPO = "darcangeloo/darcangeloo.github.io";
+      const BRANCH = "main";
+      const DIR = "src/content/log";
+      const SITE = "https://darcangeloo.github.io";
+      const $ = (id: string) => document.getElementById(id) as any;
+
+      // ---------- token ----------
+      const KEY = "nl_admin_token";
+      const safe = <T,>(fn: () => T, fallback: T): T => { try { return fn(); } catch { return fallback; } };
+      let token: string = safe(() => localStorage.getItem(KEY) || sessionStorage.getItem(KEY) || "", "");
+      const saveToken = (t: string, remember: boolean) => safe(() => {
+        localStorage.removeItem(KEY); sessionStorage.removeItem(KEY);
+        (remember ? localStorage : sessionStorage).setItem(KEY, t);
+      }, undefined);
+      const clearToken = () => safe(() => { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); }, undefined);
+
+      // ---------- GitHub API ----------
+      class ApiError extends Error { status: number; constructor(status: number, msg: string) { super(msg); this.status = status; } }
+      async function gh(path: string, opts: RequestInit & { raw?: boolean } = {}) {
+        const res = await fetch("https://api.github.com" + path, {
+          cache: "no-store",
+          ...opts,
+          headers: {
+            Authorization: "Bearer " + token,
+            Accept: opts.raw ? "application/vnd.github.raw+json" : "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            ...(opts.headers || {}),
+          },
+        });
+        if (!res.ok) {
+          let m = res.statusText;
+          try { m = (await res.json()).message || m; } catch {}
+          throw new ApiError(res.status, m);
+        }
+        return opts.raw ? res.text() : res.status === 204 ? null : res.json();
+      }
+      const b64 = (s: string) => {
+        const bytes = new TextEncoder().encode(s);
+        let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        return btoa(bin);
+      };
+      const filePath = (slug: string) => `${DIR}/${slug}.md`;
+
+      // ---------- frontmatter ----------
+      type Post = {
+        slug: string; sha?: string; title: string; description: string;
+        dateRaw: string; draft: boolean; body: string; extra: string[];
+      };
+      function parseValue(v: string) {
+        v = v.trim();
+        if (v.startsWith('"')) { try { return JSON.parse(v); } catch {} }
+        if (v.startsWith("'") && v.endsWith("'")) return v.slice(1, -1).replace(/''/g, "'");
+        return v;
+      }
+      function parse(slug: string, sha: string, raw: string): Post {
+        const m = raw.replace(/\r\n/g, "\n").match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+        const p: Post = { slug, sha, title: "", description: "", dateRaw: "", draft: false, body: (m ? m[2] : raw).replace(/^\n+/, ""), extra: [] };
+        if (!m) return p;
+        for (const line of m[1].split("\n")) {
+          const kv = line.match(/^(\w+):\s*(.*)$/);
+          if (!kv) { if (line.trim()) p.extra.push(line); continue; }
+          const [, k, v] = kv;
+          if (k === "title") p.title = parseValue(v);
+          else if (k === "description") p.description = parseValue(v);
+          else if (k === "date") p.dateRaw = parseValue(v);
+          else if (k === "draft") p.draft = v.trim() === "true";
+          else p.extra.push(line);
+        }
+        return p;
+      }
+      function serialize(p: Post) {
+        const fm = [
+          `title: ${JSON.stringify(p.title)}`,
+          `description: ${JSON.stringify(p.description)}`,
+          `date: ${p.dateRaw}`,
+          `draft: ${p.draft}`,
+          ...p.extra,
+        ];
+        return `---\n${fm.join("\n")}\n---\n\n${p.body.trim()}\n`;
+      }
+
+      // ---------- stato ----------
+      type Status = "draft" | "scheduled" | "published";
+      const todayUTC = () => new Date().toISOString().slice(0, 10);
+      // Stessa regola del sito (src/lib/posts.ts): non bozza e data già arrivata.
+      const statusOf = (p: Pick<Post, "draft" | "dateRaw">): Status =>
+        p.draft ? "draft" : new Date(p.dateRaw).getTime() <= Date.now() ? "published" : "scheduled";
+      const LABEL: Record<Status, string> = { draft: "Bozza", scheduled: "Programmato", published: "Pubblicato" };
+      const fmtDate = (d: string) => new Date(d).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+      const slugify = (s: string) =>
+        s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 70);
+
+      let posts: Post[] = [];
+      let filter = "all";
+      let current: (Post & { isNew: boolean; initialStatus: Status | "new" }) | null = null;
+      let dirty = false;
+
+      // ---------- UI helpers ----------
+      const views = ["login", "list", "editor"];
+      function show(v: string) { views.forEach((x) => ($("view-" + x).hidden = x !== v)); $("logout").hidden = v === "login"; window.scrollTo(0, 0); }
+      let toastT: any;
+      function toast(msg: string) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 4000); }
+      function confirmDialog(title: string, text: string, ok: string, danger = false): Promise<boolean> {
+        const d = $("dlg");
+        $("dlg-title").textContent = title; $("dlg-text").textContent = text;
+        const b = $("dlg-ok"); b.textContent = ok; b.classList.toggle("danger", danger);
+        return new Promise((res) => { d.addEventListener("close", () => res(d.returnValue === "ok"), { once: true }); d.returnValue = ""; d.showModal(); });
+      }
+      const errText = (e: any) =>
+        e instanceof ApiError
+          ? e.status === 401 ? "Token non valido o scaduto. Scollegati e inseriscine uno nuovo."
+          : e.status === 403 ? "Il token non ha il permesso Contents → Read and write su questo repository."
+          : e.status === 404 ? "Non trovato (o il token non vede il repository)."
+          : e.status === 409 ? "Il file è cambiato su GitHub nel frattempo. Torna all'elenco e riaprilo."
+          : e.status === 422 ? "Esiste già un post con questo indirizzo."
+          : `Errore GitHub: ${e.message}`
+          : "Errore di rete. Riprova.";
+
+      // ---------- elenco ----------
+      async function loadPosts() {
+        $("list-loading").hidden = false; $("posts").innerHTML = ""; $("list-empty").hidden = true;
+        const files: any[] = await gh(`/repos/${REPO}/contents/${DIR}?ref=${BRANCH}`);
+        const md = files.filter((f) => f.type === "file" && f.name.endsWith(".md"));
+        posts = await Promise.all(md.map(async (f) => parse(f.name.replace(/\.md$/, ""), f.sha, await gh(`/repos/${REPO}/contents/${f.path}?ref=${BRANCH}`, { raw: true }))));
+        posts.sort((a, b) => new Date(b.dateRaw).getTime() - new Date(a.dateRaw).getTime());
+        $("list-loading").hidden = true;
+        renderList();
+      }
+      function renderList() {
+        const ul = $("posts"); ul.innerHTML = "";
+        const rows = posts.filter((p) => filter === "all" || statusOf(p) === filter);
+        $("list-empty").hidden = rows.length > 0 || !$("list-loading").hidden;
+        for (const p of rows) {
+          const s = statusOf(p);
+          const li = document.createElement("li");
+          const btn = document.createElement("button");
+          btn.className = "post";
+          const badge = document.createElement("span"); badge.className = "badge " + s; badge.textContent = LABEL[s];
+          const t = document.createElement("span"); t.className = "post-title"; t.textContent = p.title || p.slug;
+          const d = document.createElement("span"); d.className = "mono muted"; d.textContent = fmtDate(p.dateRaw);
+          btn.append(badge, t, d);
+          btn.addEventListener("click", () => openEditor(p));
+          li.append(btn); ul.append(li);
+        }
+      }
+      $("tabs").addEventListener("click", (e: any) => {
+        const b = e.target.closest("button[data-f]"); if (!b) return;
+        filter = b.dataset.f;
+        $("tabs").querySelectorAll("button").forEach((x: any) => x.setAttribute("aria-selected", String(x === b)));
+        renderList();
+      });
+
+      // ---------- editor ----------
+      function openEditor(p: Post | null) {
+        const isNew = !p;
+        const base: Post = p ?? { slug: "", title: "", description: "", dateRaw: todayUTC(), draft: true, body: "", extra: [] };
+        current = { ...base, isNew, initialStatus: isNew ? "new" : statusOf(base) };
+        $("f-title").value = base.title;
+        $("f-desc").value = base.description;
+        $("f-body").value = base.body;
+        $("f-date").value = base.dateRaw.slice(0, 10);
+        $("f-state").value = base.draft ? "draft" : "live";
+        $("slug-label").textContent = isNew ? "" : `${DIR}/${base.slug}.md`;
+        $("delete").hidden = isNew;
+        const live = !isNew && statusOf(base) === "published";
+        $("open-live").hidden = !live;
+        if (live) $("open-live").href = `${SITE}/log/${base.slug}/`;
+        setTab("write"); $("ed-error").hidden = true; dirty = false;
+        refresh(); show("editor");
+        $(isNew ? "f-title" : "f-body").focus({ preventScroll: true });
+      }
+      function formState() {
+        const draft = $("f-state").value === "draft";
+        const date = $("f-date").value;
+        const status: Status = draft ? "draft" : new Date(date).getTime() <= Date.now() ? "published" : "scheduled";
+        return { draft, date, status };
+      }
+      function refresh() {
+        if (!current) return;
+        $("desc-count").textContent = String($("f-desc").value.length);
+        const { status, date } = formState();
+        const was = current.initialStatus;
+        const goesOut = status !== "draft" && was !== status && was !== "published";
+        $("save").textContent =
+          status === "draft" ? "Salva bozza"
+          : was === "published" && status === "published" ? "Salva modifiche"
+          : status === "published" ? "Pubblica e invia"
+          : `Programma per il ${fmtDate(date)}`;
+        $("save").classList.toggle("go", goesOut);
+        const h: string[] = [];
+        if (status === "draft") h.push("Non esce sul sito né in newsletter.");
+        if (status === "published" && was !== "published") h.push("Va online al prossimo deploy (1-2 minuti dopo il salvataggio); da lì il feed RSS lo passa a FeedLetter.");
+        if (status === "scheduled") h.push("Esce con il primo deploy dopo le 00:00 UTC di quel giorno: quello giornaliero è alle 06:00 UTC.");
+        if (status === "published" && was !== "published" && date < todayUTC()) h.push("Data nel passato: il post risulta pubblicato ma, se FeedLetter ordina per data, potrebbe non considerarlo nuovo (non verificato). Usa la data di oggi per sicurezza.");
+        if (was === "published" && status === "draft") h.push("Il post sparisce dal sito ma le email già inviate non si richiamano.");
+        if (was === "published" && status === "published") h.push("Modifica un post già uscito: il sito si aggiorna, le email già inviate no.");
+        $("state-hint").textContent = h.join(" ");
+      }
+      function setTab(t: string) {
+        $("edtabs").querySelectorAll("button").forEach((x: any) => x.setAttribute("aria-selected", String(x.dataset.t === t)));
+        const prev = t === "preview";
+        $("f-body").hidden = prev; $("preview").hidden = !prev;
+        if (prev) {
+          const html = marked.parse($("f-body").value || "", { async: false }) as string;
+          $("preview").srcdoc = `<!doctype html><meta charset="utf-8"><style>body{font:18px/1.7 Georgia,serif;color:#3D3A33;background:#F7F5EF;margin:16px;max-width:680px}h1,h2,h3{color:#1C1B18;font-weight:500}pre{overflow:auto;padding:12px;border:1px solid #E3DFD4;border-radius:10px;font:14px/1.5 monospace}code{font-family:monospace;font-size:.9em}img{max-width:100%}blockquote{margin:0 0 1em;padding-left:16px;border-left:2px solid #E3DFD4;color:#5E5A50}</style><h1>${esc($("f-title").value)}</h1>${html}`;
+        }
+      }
+      const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+      $("edtabs").addEventListener("click", (e: any) => { const b = e.target.closest("button[data-t]"); if (b) setTab(b.dataset.t); });
+      $("editor").addEventListener("input", () => { dirty = true; refresh(); });
+      $("editor").addEventListener("change", () => { dirty = true; refresh(); });
+      window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+      async function leaveEditor() {
+        if (dirty && !(await confirmDialog("Modifiche non salvate", "Se esci le perdi.", "Esci senza salvare", true))) return;
+        dirty = false; current = null; show("list"); await reload();
+      }
+      $("back").addEventListener("click", leaveEditor);
+      $("new").addEventListener("click", () => openEditor(null));
+
+      $("editor").addEventListener("submit", async (e: Event) => {
+        e.preventDefault();
+        if (!current) return;
+        const c = current;
+        const { draft, date, status } = formState();
+        const title = $("f-title").value.trim();
+        const slug = c.isNew ? slugify(title) : c.slug;
+        const err = $("ed-error"); err.hidden = true;
+        if (!slug) { err.textContent = "Il titolo deve contenere almeno una lettera o un numero."; err.hidden = false; return; }
+        if (c.isNew && posts.some((p) => p.slug === slug)) { err.textContent = `Esiste già un post con indirizzo "${slug}". Cambia il titolo.`; err.hidden = false; return; }
+
+        const goesOut = status !== "draft" && c.initialStatus !== status && c.initialStatus !== "published";
+        if (goesOut) {
+          const ok = await confirmDialog(
+            status === "published" ? "Pubblicare e inviare?" : "Programmare il post?",
+            status === "published"
+              ? `"${title}" va online e finisce nel feed RSS: FeedLetter lo invierà agli iscritti. Non si può annullare.`
+              : `"${title}" uscirà il ${fmtDate(date)} con il primo deploy utile e finirà nel feed RSS: FeedLetter lo invierà agli iscritti.`,
+            status === "published" ? "Pubblica e invia" : "Programma",
+          );
+          if (!ok) return;
+        } else if (c.initialStatus === "published" && status === "draft") {
+          if (!(await confirmDialog("Ritirare il post?", "Sparisce dal sito. Le email già inviate non si possono richiamare.", "Ritira", true))) return;
+        }
+
+        const next: Post = {
+          ...c, slug, title, description: $("f-desc").value.trim(), draft, body: $("f-body").value,
+          // conserva data con orario originale se non è stata toccata
+          dateRaw: c.dateRaw.slice(0, 10) === date ? c.dateRaw : date,
+        };
+        const btn = $("save"); btn.disabled = true;
+        const label = btn.textContent; btn.textContent = "Salvo…";
+        try {
+          const verb = c.isNew ? "Nuovo post" : status === "draft" && c.initialStatus === "published" ? "Ritira" : goesOut ? (status === "published" ? "Pubblica" : "Programma") : "Aggiorna";
+          const res: any = await gh(`/repos/${REPO}/contents/${filePath(slug)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: `${verb}: ${title}`, content: b64(serialize(next)), branch: BRANCH, ...(c.isNew ? {} : { sha: c.sha }) }),
+          });
+          next.sha = res.content.sha;
+          const i = posts.findIndex((p) => p.slug === slug);
+          if (i >= 0) posts[i] = next; else posts.push(next);
+          current = { ...next, isNew: false, initialStatus: status };
+          dirty = false;
+          $("slug-label").textContent = `${DIR}/${slug}.md`; $("delete").hidden = false;
+          const live = status === "published";
+          $("open-live").hidden = !live; if (live) $("open-live").href = `${SITE}/log/${slug}/`;
+          refresh();
+          toast(status === "draft" ? "Bozza salvata." : "Salvato. Il deploy parte da solo.");
+          pollDeploy();
+        } catch (ex) {
+          err.textContent = errText(ex); err.hidden = false; btn.textContent = label;
+        } finally { btn.disabled = false; }
+      });
+
+      $("delete").addEventListener("click", async () => {
+        if (!current || current.isNew) return;
+        const c = current;
+        const sent = statusOf(c) !== "draft";
+        if (!(await confirmDialog("Eliminare il post?", `"${c.title}" viene cancellato dal repository (resta nella cronologia di git).${sent ? " Se è già uscito, le email inviate restano agli iscritti." : ""}`, "Elimina", true))) return;
+        try {
+          await gh(`/repos/${REPO}/contents/${filePath(c.slug)}`, {
+            method: "DELETE", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: `Elimina: ${c.title}`, sha: c.sha, branch: BRANCH }),
+          });
+          posts = posts.filter((p) => p.slug !== c.slug);
+          dirty = false; current = null; show("list"); renderList(); toast("Post eliminato."); pollDeploy();
+        } catch (ex) { $("ed-error").textContent = errText(ex); $("ed-error").hidden = false; }
+      });
+
+      // ---------- stato deploy (richiede Actions: Read, altrimenti si nasconde) ----------
+      let pollT: any;
+      async function pollDeploy(n = 0) {
+        clearTimeout(pollT);
+        try {
+          const r: any = await gh(`/repos/${REPO}/actions/runs?branch=${BRANCH}&per_page=1`);
+          const run = r.workflow_runs?.[0]; if (!run) return;
+          const el = $("deploy"); el.hidden = false;
+          const done = run.status === "completed";
+          const ok = run.conclusion === "success";
+          el.textContent = done ? (ok ? "deploy ok" : "deploy fallito") : "deploy in corso…";
+          el.style.color = done && !ok ? "#a3261e" : "";
+          if (!done && n < 40) pollT = setTimeout(() => pollDeploy(n + 1), 8000);
+        } catch { $("deploy").hidden = true; }
+      }
+
+      // ---------- avvio ----------
+      async function reload() {
+        try { await loadPosts(); }
+        catch (e) {
+          $("list-loading").textContent = errText(e);
+          if (e instanceof ApiError && e.status === 401) { clearToken(); token = ""; }
+        }
+      }
+      async function start() {
+        if (!token) { show("login"); return; }
+        show("list"); pollDeploy(); await reload();
+      }
+      $("login-form").addEventListener("submit", async (e: Event) => {
+        e.preventDefault();
+        const t = $("token").value.trim(); const err = $("login-error"); err.hidden = true;
+        token = t;
+        try {
+          const r: any = await gh(`/repos/${REPO}`);
+          if (r.permissions && !r.permissions.push) throw new ApiError(403, "no push");
+          saveToken(t, $("remember").checked); $("token").value = "";
+          await start();
+        } catch (ex) { token = ""; err.textContent = errText(ex); err.hidden = false; }
+      });
+      $("logout").addEventListener("click", async () => {
+        if (dirty && !(await confirmDialog("Modifiche non salvate", "Se ti scolleghi le perdi.", "Scollega", true))) return;
+        dirty = false; clearToken(); token = ""; current = null; posts = []; $("deploy").hidden = true; show("login");
+      });
+      start();
+    </script>
+
+    <style is:global>
+      :root {
+        --bg: #F7F5EF; --ink: #1C1B18; --text: #3D3A33; --muted: #5E5A50;
+        --line: #E3DFD4; --accent: #1F5F4A; --accent-soft: #DCE6E0; --danger: #a3261e; --card: #fff;
+        --serif: Newsreader, Georgia, serif; --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: ui-monospace, "IBM Plex Mono", monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root { --bg: #151512; --ink: #F1EFE8; --text: #D5D1C5; --muted: #A09C90; --line: #34322B; --accent: #6FBF9F; --accent-soft: #1E2B25; --danger: #ff8a80; --card: #1C1B18; }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.6 var(--sans); }
+      .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px 80px; }
+      h1, h2 { font-family: var(--serif); color: var(--ink); font-weight: 500; margin: 0; }
+      .top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 24px 0 12px; border-bottom: 2px solid var(--accent); margin-bottom: 24px; }
+      .top h1 { font-size: 28px; color: var(--accent); font-weight: 600; }
+      .top-right { display: flex; gap: 16px; align-items: baseline; }
+      a { color: var(--accent); }
+      code { font-family: var(--mono); font-size: .9em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+      .mono { font-family: var(--mono); font-size: 13px; }
+      .muted { color: var(--muted); }
+      [hidden] { display: none !important; }
+      .stack { display: flex; flex-direction: column; gap: 6px; }
+      label { font-weight: 500; color: var(--ink); font-size: 14px; margin-top: 10px; }
+      label.check { display: flex; gap: 8px; align-items: center; font-weight: 400; }
+      input, textarea, select {
+        width: 100%; font: 400 16px/1.5 var(--sans); color: var(--ink); background: var(--card);
+        border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+      }
+      input[type="checkbox"] { width: auto; }
+      textarea { resize: vertical; }
+      #f-body { font: 15px/1.6 var(--mono); min-height: 360px; }
+      #preview { width: 100%; height: 480px; border: 1px solid var(--line); border-radius: 10px; background: #F7F5EF; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .card { border: 1px solid var(--line); border-radius: 12px; padding: 20px; background: var(--card); }
+      .steps { padding-left: 20px; margin: 16px 0; } .steps li { margin-bottom: 6px; }
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 22px; margin-top: 12px;
+        border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: var(--bg);
+        font: 600 16px var(--sans); text-decoration: none; cursor: pointer;
+      }
+      .btn.small { min-height: 40px; margin: 0; padding: 0 16px; font-size: 15px; }
+      .btn.outline { background: transparent; color: var(--accent); }
+      .btn.danger { border-color: var(--danger); background: var(--danger); color: #fff; }
+      .btn.outline.danger { background: transparent; color: var(--danger); }
+      .btn:disabled { opacity: .6; cursor: progress; }
+      .btn.go { box-shadow: 0 0 0 3px var(--accent-soft); }
+      .link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+      .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+      .actions .btn { margin-top: 16px; }
+      .error { color: var(--danger); margin: 8px 0 0; }
+      .hint { color: var(--muted); font-size: 14px; margin: 4px 0 8px; }
+      .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+      .tabs { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+      .tabs button { border: 1px solid var(--line); background: transparent; color: var(--text); padding: 6px 12px; border-radius: 8px; font: 500 14px var(--sans); cursor: pointer; }
+      .tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+      .bar .tabs { margin-top: 0; }
+      .posts { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+      .post { display: grid; grid-template-columns: 104px 1fr auto; gap: 12px; align-items: center; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 14px 4px; cursor: pointer; color: var(--text); font: inherit; min-height: 56px; }
+      .post:hover { background: var(--accent-soft); }
+      .post-title { color: var(--ink); font-family: var(--serif); font-size: 18px; line-height: 1.3; }
+      .badge { font: 500 12px var(--mono); padding: 2px 8px; border-radius: 99px; text-align: center; border: 1px solid var(--line); }
+      .badge.published { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+      .badge.scheduled { border-color: var(--ink); color: var(--ink); }
+      .badge.draft { color: var(--muted); border-style: dashed; }
+      dialog { border: 1px solid var(--line); border-radius: 14px; padding: 24px; max-width: 440px; width: calc(100% - 32px); background: var(--card); color: var(--text); }
+      dialog::backdrop { background: rgba(0, 0, 0, .45); }
+      dialog h2 { font-size: 22px; margin-bottom: 8px; }
+      #toast { position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 20px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; opacity: 0; pointer-events: none; transition: .2s; max-width: calc(100% - 32px); }
+      #toast.on { opacity: 1; transform: translate(-50%, 0); }
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      @media (max-width: 560px) {
+        .post { grid-template-columns: 1fr auto; } .post .badge { grid-column: 1 / -1; justify-self: start; }
+        .row { grid-template-columns: 1fr; }
+      }
+    </style>
+  </body>
+</html>
